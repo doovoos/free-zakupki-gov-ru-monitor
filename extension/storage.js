@@ -152,7 +152,18 @@ export async function markSeen(urlKey, ids, limit) {
 
 export async function pushRecent(entries) {
   const cur = await getState();
-  const recent = [...entries, ...cur.recent].slice(0, cur.settings.maxRecent);
+  // Дедупликация: одна и та же запись могла прийти из двух лент с одинаковым URL
+  // (или остаться в recent после повторной проверки). Ключ — link, а если его
+  // нет, пара feedId:title: у записей без link нет другого стабильного идентификатора.
+  const seen = new Set();
+  const recent = [];
+  for (const entry of [...entries, ...cur.recent]) {
+    const key = entry.link || `${entry.feedId}:${entry.title}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    recent.push(entry);
+    if (recent.length >= cur.settings.maxRecent) break;
+  }
   await chrome.storage.local.set({ recent });
 }
 
